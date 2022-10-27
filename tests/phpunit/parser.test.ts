@@ -16,13 +16,13 @@ describe('Parser Test', () => {
     const givenTest = (method: string) => tests.find((test) => test.method === method);
 
     describe('parse AssertionsTest', () => {
-        const filename = projectPath('tests/AssertionsTest.php');
+        const fsPath = projectPath('tests/AssertionsTest.php');
         const namespace = 'Recca0120\\VSCode\\Tests';
         const _class = 'AssertionsTest';
 
         beforeAll(async () => {
-            const buffer = await readFile(filename);
-            tests = parse(buffer.toString(), filename)!;
+            const buffer = await readFile(fsPath);
+            tests = parse(buffer.toString(), fsPath)!;
         });
 
         it('it should parse test_passed', () => {
@@ -30,7 +30,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -47,7 +47,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -65,7 +65,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -82,7 +82,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -99,7 +99,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -116,7 +116,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -133,7 +133,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -150,7 +150,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -165,11 +165,11 @@ describe('Parser Test', () => {
     });
 
     describe('parse AbstractTest', () => {
-        const filename = projectPath('tests/AbstractTest.php');
+        const fsPath = projectPath('tests/AbstractTest.php');
 
         beforeAll(async () => {
-            const buffer = await readFile(filename);
-            tests = parse(buffer.toString(), filename)!;
+            const buffer = await readFile(fsPath);
+            tests = parse(buffer.toString(), fsPath)!;
         });
 
         it('it should not parse abstract class', () => {
@@ -178,13 +178,13 @@ describe('Parser Test', () => {
     });
 
     describe('parse StaticMethodTest', () => {
-        const filename = projectPath('tests/StaticMethodTest.php');
+        const fsPath = projectPath('tests/StaticMethodTest.php');
         const namespace = 'Recca0120\\VSCode\\Tests';
         const _class = 'StaticMethodTest';
 
         beforeAll(async () => {
-            const buffer = await readFile(filename);
-            tests = parse(buffer.toString(), filename)!;
+            const buffer = await readFile(fsPath);
+            tests = parse(buffer.toString(), fsPath)!;
         });
 
         it('it should parse test_static_public_fail', () => {
@@ -192,7 +192,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -208,13 +208,13 @@ describe('Parser Test', () => {
     });
 
     describe('parse HasPropertyTest', () => {
-        const filename = projectPath('tests/SubFolder/HasPropertyTest.php');
+        const fsPath = projectPath('tests/SubFolder/HasPropertyTest.php');
         const namespace = 'Recca0120\\VSCode\\Tests\\SubFolder';
         const _class = 'HasPropertyTest';
 
         beforeAll(async () => {
-            const buffer = await readFile(filename);
-            tests = parse(buffer.toString(), filename)!;
+            const buffer = await readFile(fsPath);
+            tests = parse(buffer.toString(), fsPath)!;
         });
 
         it('it should parse property', () => {
@@ -222,7 +222,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -238,13 +238,13 @@ describe('Parser Test', () => {
     });
 
     describe('parse LeadingCommentsTest', () => {
-        const filename = projectPath('tests/SubFolder/LeadingCommentsTest.php');
+        const fsPath = projectPath('tests/SubFolder/LeadingCommentsTest.php');
         const namespace = 'Recca0120\\VSCode\\Tests\\SubFolder';
         const _class = 'LeadingCommentsTest';
 
         beforeAll(async () => {
-            const buffer = await readFile(filename);
-            tests = parse(buffer.toString(), filename)!;
+            const buffer = await readFile(fsPath);
+            tests = parse(buffer.toString(), fsPath)!;
         });
 
         it('it should parse firstLeadingComments', () => {
@@ -252,7 +252,7 @@ describe('Parser Test', () => {
 
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,
@@ -266,20 +266,20 @@ describe('Parser Test', () => {
     });
 
     describe('parse UseTraitTest', () => {
-        const filename = projectPath('tests/SubFolder/UseTraitTest.php');
+        const fsPath = projectPath('tests/SubFolder/UseTraitTest.php');
         const namespace = 'Recca0120\\VSCode\\Tests\\SubFolder';
         const _class = 'UseTraitTest';
 
         beforeAll(async () => {
-            const buffer = await readFile(filename);
-            tests = parse(buffer.toString(), filename)!;
+            const buffer = await readFile(fsPath);
+            tests = parse(buffer.toString(), fsPath)!;
         });
 
         it('it should parse use_trait', () => {
             const method = 'use_trait';
             expect(givenTest(method)).toEqual(
                 expect.objectContaining({
-                    filename,
+                    fsPath,
                     id: uniqueId(namespace, _class, method),
                     qualifiedClass: qualifiedClass(namespace, _class),
                     namespace,

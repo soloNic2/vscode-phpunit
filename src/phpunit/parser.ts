@@ -179,7 +179,9 @@ class Validator {
     private isAnnotationTest(declaration: Declaration) {
         return !declaration.leadingComments
             ? false
-            : /@test/.test(declaration.leadingComments.map((comment) => comment.value).join('\n'));
+            : new RegExp('@test').test(
+                  declaration.leadingComments.map((comment) => comment.value).join('\n')
+              );
     }
 
     private acceptModifier(declaration: Method) {
@@ -197,13 +199,13 @@ class Parser {
         class: this.parseClass,
     };
 
-    public parse(text: Buffer | string, filename: string) {
+    public parse(text: Buffer | string, fsPath: string) {
         text = text.toString();
 
         // Todo https://github.com/glayzzle/php-parser/issues/170
         text = text.replace(/\?>\r?\n<\?/g, '?>\n___PSEUDO_INLINE_PLACEHOLDER___<?');
 
-        const ast = engine.parseCode(text, filename);
+        const ast = engine.parseCode(text, fsPath);
 
         // https://github.com/glayzzle/php-parser/issues/155
         // currently inline comments include the line break at the end, we need to
@@ -219,7 +221,7 @@ class Parser {
             }
         });
 
-        return this.parseAst(ast, filename);
+        return this.parseAst(ast, fsPath);
     }
 
     private isTest(declaration: Declaration) {
@@ -232,42 +234,42 @@ class Parser {
 
     private parseAst(
         ast: Program | Namespace | UseGroup | Class | Node,
-        filename: string
+        fsPath: string
     ): TestCase[] | undefined {
         const fn: Function = this.lookup[ast.kind] ?? this.parseChildren;
 
-        return fn.apply(this, [ast, filename]);
+        return fn.apply(this, [ast, fsPath]);
     }
 
-    private parseNamespace(ast: Program | Namespace | UseGroup | Class | Node, filename: string) {
-        // new TestCase(filename, this.parseAttributes(ast as Declaration, this.namespace));
+    private parseNamespace(ast: Program | Namespace | UseGroup | Class | Node, fsPath: string) {
+        // new TestCase(fsPath, this.parseAttributes(ast as Declaration, this.namespace));
 
-        return this.parseChildren((this.namespace = ast as Namespace), filename);
+        return this.parseChildren((this.namespace = ast as Namespace), fsPath);
     }
 
-    private parseClass(ast: Program | Namespace | UseGroup | Class | Node, filename: string) {
+    private parseClass(ast: Program | Namespace | UseGroup | Class | Node, fsPath: string) {
         const _class = ast as Class;
 
         if (!this.isTest(_class)) {
             return [];
         }
 
-        // new TestSuite(filename, this.parseAttributes(declaration, this.namespace));
+        // new TestSuite(fsPath, this.parseAttributes(declaration, this.namespace));
 
         return _class.body
             .filter((declaration) => this.isTest(declaration))
             .map((declaration) => {
                 return new TestCase(
-                    filename,
+                    fsPath,
                     this.parseAttributes(declaration, this.namespace, _class)
                 );
             });
     }
 
-    private parseChildren(ast: Program | Namespace | UseGroup | Class | Node, filename: string) {
+    private parseChildren(ast: Program | Namespace | UseGroup | Class | Node, fsPath: string) {
         if ('children' in ast) {
             return ast.children.reduce(
-                (tests, children: Node) => tests.concat(this.parseAst(children, filename) ?? []),
+                (tests, children: Node) => tests.concat(this.parseAst(children, fsPath) ?? []),
                 [] as TestCase[]
             );
         }
@@ -285,7 +287,7 @@ abstract class Test implements Attribute {
     public readonly end!: Position;
     public readonly annotations!: Annotations;
 
-    constructor(public readonly filename: string, attributes: Attribute) {
+    constructor(public readonly fsPath: string, attributes: Attribute) {
         Object.assign(this, attributes);
     }
 }
@@ -298,4 +300,4 @@ export class TestCase extends Test {
 
 const parser = new Parser();
 
-export const parse = (buffer: Buffer | string, filename: string) => parser.parse(buffer, filename);
+export const parse = (buffer: Buffer | string, fsPath: string) => parser.parse(buffer, fsPath);
