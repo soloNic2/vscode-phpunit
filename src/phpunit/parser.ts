@@ -235,7 +235,7 @@ class Parser {
     private parseAst(
         ast: Program | Namespace | UseGroup | Class | Node,
         fsPath: string
-    ): TestCase[] | undefined {
+    ): TestSuite[] | undefined {
         const fn: Function = this.lookup[ast.kind] ?? this.parseChildren;
 
         return fn.apply(this, [ast, fsPath]);
@@ -254,23 +254,27 @@ class Parser {
             return [];
         }
 
-        // new TestSuite(fsPath, this.parseAttributes(declaration, this.namespace));
+        let attributes = this.parseAttributes(ast as Declaration, this.namespace);
+        const suite = new TestSuite(fsPath, attributes);
 
-        return _class.body
+        suite.children = _class.body
             .filter((declaration) => this.isTest(declaration))
             .map((declaration) => {
-                return new TestCase(
-                    fsPath,
-                    this.parseAttributes(declaration, this.namespace, _class)
-                );
+                const attributes = this.parseAttributes(declaration, this.namespace, _class);
+                const test = new TestCase(fsPath, attributes);
+                test.parent = suite;
+
+                return test;
             });
+
+        return suite.children.length > 0 ? [suite] : undefined;
     }
 
     private parseChildren(ast: Program | Namespace | UseGroup | Class | Node, fsPath: string) {
         if ('children' in ast) {
             return ast.children.reduce(
                 (tests, children: Node) => tests.concat(this.parseAst(children, fsPath) ?? []),
-                [] as TestCase[]
+                [] as TestSuite[]
             );
         }
 
@@ -292,10 +296,13 @@ abstract class Test implements Attribute {
     }
 }
 
-// export class TestSuite extends Test {}
+export class TestSuite extends Test {
+    public children: TestCase[] = [];
+}
 
 export class TestCase extends Test {
     public readonly method!: string;
+    public parent?: TestSuite;
 }
 
 const parser = new Parser();
