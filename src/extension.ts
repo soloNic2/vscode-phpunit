@@ -1,18 +1,26 @@
 import * as vscode from 'vscode';
+import { TestCase, testData, TestFile } from './testTree';
+import { parse, TestCase as TestCase2, TestSuite } from './phpunit/parser';
+import { Command } from './phpunit/command';
 import {
-    getContentFromFilesystem,
-    MarkdownTestData,
-    TestCase,
-    testData,
-    TestFile,
-} from './testTree';
+    Result,
+    TestEvent,
+    TestFailed,
+    TestFinished,
+    TestIgnored,
+    TestResult,
+} from './phpunit/problem-matcher';
+
+export const testData2 = new WeakMap<vscode.TestItem, TestSuite | TestCase2>();
 
 export async function activate(context: vscode.ExtensionContext) {
     const ctrl = vscode.tests.createTestController('mathTestController', 'Markdown Math');
     context.subscriptions.push(ctrl);
 
-    const runHandler = (request: vscode.TestRunRequest, cancellation: vscode.CancellationToken) => {
-        const queue: { test: vscode.TestItem; data: TestCase }[] = [];
+    const runHandler = (
+        request: vscode.TestRunRequest /*, cancellation: vscode.CancellationToken*/
+    ) => {
+        const queue: { test: vscode.TestItem; data: any }[] = [];
         const run = ctrl.createTestRun(request);
         // map of file uris to statements on each line:
         const coveredLines = new Map<
@@ -26,59 +34,138 @@ export async function activate(context: vscode.ExtensionContext) {
                     continue;
                 }
 
-                const data = testData.get(test);
-                if (data instanceof TestCase) {
-                    run.enqueued(test);
-                    queue.push({ test, data });
-                } else {
-                    if (data instanceof TestFile && !data.didResolve) {
-                        await data.updateFromDisk(ctrl, test);
+                run.enqueued(test);
+                test.children.forEach((child) => run.enqueued(child));
+
+                const folder = vscode.workspace.workspaceFolders![0];
+                const rootPath = folder.uri.fsPath;
+                const command = new Command({
+                    cwd: rootPath,
+                });
+                command.on('test', (result: Result) => {
+                    if (!result.hasOwnProperty('event') || !result.hasOwnProperty('id')) {
+                        return;
                     }
 
-                    await discoverTests(gatherTestItems(test.children));
-                }
+                    result = result as TestResult;
 
-                if (test.uri && !coveredLines.has(test.uri.toString())) {
-                    try {
-                        const lines = (await getContentFromFilesystem(test.uri)).split('\n');
-                        coveredLines.set(
-                            test.uri.toString(),
-                            lines.map((lineText, lineNo) =>
-                                lineText.trim().length
-                                    ? new vscode.StatementCoverage(
-                                          0,
-                                          new vscode.Position(lineNo, 0)
-                                      )
-                                    : undefined
-                            )
+                    if ([TestEvent.testStarted].includes(result.event)) {
+                        const id = (result as any).id.replace(/\swith\sdata\sset\s#\d+/, '');
+                        const child = test.children.get(id)!;
+                        run.started(child);
+                    }
+
+                    if ([TestEvent.testFailed].includes(result.event)) {
+                        const id = (result as any).id.replace(/\swith\sdata\sset\s#\d+/, '');
+                        const child = test.children.get(id)!;
+                        const message = vscode.TestMessage.diff(
+                            (result as TestFailed).message!,
+                            (result as TestFailed).expected!,
+                            (result as TestFailed).actual!
                         );
-                    } catch {
-                        // ignored
+                        // const message = {
+                        //     message: (result as TestFailed).message,
+                        //     actualOutput: (result as TestFailed).actual,
+                        //     expectedOutput: (result as TestFailed).expected,
+                        // };
+                        const details = (result as TestFailed).details;
+                        if (details.length > 0) {
+                            const range = new vscode.Range(
+                                new vscode.Position(details[0].line - 1, 0),
+                                new vscode.Position(details[0].line - 1, 0)
+                            );
+                            message.location = new vscode.Location(child.uri!, range);
+                        }
+                        run.failed(child, message, (result as TestFailed).duration);
                     }
-                }
+
+                    if ([TestEvent.testIgnored].includes(result.event)) {
+                        const id = (result as any).id.replace(/\swith\sdata\sset\s#\d+/, '');
+                        const child = test.children.get(id)!;
+                        run.skipped(child);
+                    }
+
+                    if ([TestEvent.testFinished].includes(result.event)) {
+                        const id = (result as any).id.replace(/\swith\sdata\sset\s#\d+/, '');
+                        const child = test.children.get(id)!;
+                        run.passed(child, (result as TestFinished).duration);
+                    }
+                });
+
+                // '--filter',
+                // '^.*::(test_passed|test_failed)( with data set .*)?$'
+                // if (process.platform === 'win32') {
+                //     filter = `"${filter}"`;
+                // } else {
+                //     filter = `'${filter}'`;
+                // }
+
+                const testData = testData2.get(test) as TestSuite;
+                // const depends = testData.children
+                //     .filter((test) => test.annotations.depends)
+                //     .reduce((depends, test) => {
+                //         return depends.concat(test.annotations.depends!);
+                //     }, [] as string[]);
+
+                // if (depends.length > 0) {
+                //     filter = `--filter '^.*::(${depends.join('|')})( with data set .*)?$'`;
+                // }
+
+                let filter = '';
+                const cmd = `php vendor/bin/phpunit ${testData?.fsPath} ${filter}`.trim();
+                await command.execute(cmd);
+                run.end();
+
+                // const data = testData.get(test);
+                // if (data instanceof TestCase) {
+                //     run.enqueued(test);
+                //     queue.push({ test, data });
+                // } else {
+                //     if (data instanceof TestFile && !data.didResolve) {
+                //         await data.updateFromDisk(ctrl, test);
+                //     }
+                //
+                //     await discoverTests(gatherTestItems(test.children));
+                // }
+                //
+                // if (test.uri && !coveredLines.has(test.uri.toString())) {
+                //     try {
+                //         const lines = (await getContentFromFilesystem(test.uri)).split('\n');
+                //         coveredLines.set(
+                //             test.uri.toString(),
+                //             lines.map((lineText, lineNo) =>
+                //                 lineText.trim().length
+                //                     ? new vscode.StatementCoverage(
+                //                           0,
+                //                           new vscode.Position(lineNo, 0)
+                //                       )
+                //                     : undefined
+                //             )
+                //         );
+                //     } catch {
+                //         // ignored
+                //     }
+                // }
             }
         };
 
         const runTestQueue = async () => {
-            for (const { test, data } of queue) {
-                run.appendOutput(`Running ${test.id}\r\n`);
-                if (cancellation.isCancellationRequested) {
-                    run.skipped(test);
-                } else {
-                    run.started(test);
-                    await data.run(test, run);
-                }
-
-                const lineNo = test.range!.start.line;
-                const fileCoverage = coveredLines.get(test.uri!.toString());
-                if (fileCoverage) {
-                    fileCoverage[lineNo]!.executionCount++;
-                }
-
-                run.appendOutput(`Completed ${test.id}\r\n`);
-            }
-
-            run.end();
+            // for (const { test, data } of queue) {
+            //     run.appendOutput(`Running ${test.id}\r\n`);
+            //     if (cancellation.isCancellationRequested) {
+            //         run.skipped(test);
+            //     } else {
+            //         run.started(test);
+            //         await data.run(test, run);
+            //     }
+            //     const lineNo = test.range!.start.line;
+            //     const fileCoverage = coveredLines.get(test.uri!.toString());
+            //     if (fileCoverage) {
+            //         fileCoverage[lineNo]!.executionCount++;
+            //     }
+            //     run.appendOutput(`Completed ${test.id}\r\n`);
+            // }
+            // run.end();
         };
 
         run.coverageProvider = {
@@ -125,12 +212,13 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        if (!e.uri.path.endsWith('.md')) {
+        if (!e.uri.path.endsWith('.php')) {
             return;
         }
 
-        const { file, data } = getOrCreateFile(ctrl, e.uri);
-        data.updateFromContents(ctrl, e.getText(), file);
+        getOrCreateFile(ctrl, e.uri);
+        // const { file, data } = getOrCreateFile(ctrl, e.uri);
+        // data.updateFromContents(ctrl, e.getText(), file);
     }
 
     for (const document of vscode.workspace.textDocuments) {
@@ -143,20 +231,48 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 }
 
-function getOrCreateFile(controller: vscode.TestController, uri: vscode.Uri) {
+async function getOrCreateFile(controller: vscode.TestController, uri: vscode.Uri) {
     const existing = controller.items.get(uri.toString());
     if (existing) {
-        return { file: existing, data: testData.get(existing) as TestFile };
+        return;
     }
 
-    const file = controller.createTestItem(uri.toString(), uri.path.split('/').pop()!, uri);
-    controller.items.add(file);
+    const textDecoder = new TextDecoder('utf-8');
+    const text = textDecoder.decode(await vscode.workspace.fs.readFile(uri));
+    const suites = parse(text, uri.fsPath);
 
-    const data = new TestFile();
-    testData.set(file, data);
+    if (suites) {
+        suites.forEach((suite) => {
+            const parent = controller.createTestItem(suite.id, suite.qualifiedClass, uri);
+            parent.canResolveChildren = true;
 
-    file.canResolveChildren = true;
-    return { file, data };
+            testData2.set(parent, suite);
+            parent.children.replace(
+                suite.children.map((test, index) => {
+                    const children = controller.createTestItem(test.id, test.method, uri);
+                    children.canResolveChildren = false;
+                    children.sortText = `${index}`;
+                    testData2.set(children, test);
+                    controller.items.add(children);
+
+                    return children;
+                })
+            );
+
+            controller.items.add(parent);
+        });
+    }
+
+    return;
+
+    // const file = controller.createTestItem(uri.toString(), uri.path.split('/').pop()!, uri);
+    // controller.items.add(file);
+    //
+    // const data = new TestFile();
+    // testData.set(file, data);
+    //
+    // file.canResolveChildren = true;
+    // return { file, data };
 }
 
 function gatherTestItems(collection: vscode.TestItemCollection) {
@@ -172,7 +288,7 @@ function getWorkspaceTestPatterns() {
 
     return vscode.workspace.workspaceFolders.map((workspaceFolder) => ({
         workspaceFolder,
-        pattern: new vscode.RelativePattern(workspaceFolder, '**/*.md'),
+        pattern: new vscode.RelativePattern(workspaceFolder, 'tests/**/*.php'),
     }));
 }
 
@@ -187,12 +303,13 @@ function startWatchingWorkspace(controller: vscode.TestController) {
         const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
         watcher.onDidCreate((uri) => getOrCreateFile(controller, uri));
-        watcher.onDidChange((uri) => {
-            const { file, data } = getOrCreateFile(controller, uri);
-            if (data.didResolve) {
-                data.updateFromDisk(controller, file);
-            }
-        });
+        watcher.onDidChange((uri) => getOrCreateFile(controller, uri));
+        // watcher.onDidChange((uri) => {
+        //     const {file, data} = getOrCreateFile(controller, uri);
+        //     if (data.didResolve) {
+        //         data.updateFromDisk(controller, file);
+        //     }
+        // });
         watcher.onDidDelete((uri) => controller.items.delete(uri.toString()));
 
         findInitialFiles(controller, pattern);

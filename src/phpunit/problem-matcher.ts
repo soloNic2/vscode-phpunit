@@ -45,7 +45,7 @@ export class EscapeValue {
     }
 }
 
-export enum TeamcityEvent {
+export enum TestEvent {
     testCount = 'testCount',
     testSuiteStarted = 'testSuiteStarted',
     testSuiteFinished = 'testSuiteFinished',
@@ -55,13 +55,13 @@ export enum TeamcityEvent {
     testFinished = 'testFinished',
 }
 
-type TestCount = { event: TeamcityEvent; count: number; flowId: number };
-type TeamcityInfo = { event: TeamcityEvent; name: string; flowId: number };
-type TestSuiteStarted = TeamcityInfo & { id?: string; file?: string; locationHint?: string };
-type TestSuiteFinished = TeamcityInfo;
-type TestStarted = TeamcityInfo & { id: string; file: string; locationHint: string };
-type TestFinished = TeamcityInfo & { duration: number };
-type TestResultCount = {
+type TestInfo = { event: TestEvent; name: string; flowId: number };
+export type TestCount = { event: TestEvent; count: number; flowId: number };
+export type TestSuiteStarted = TestInfo & { id?: string; file?: string; locationHint?: string };
+export type TestSuiteFinished = TestInfo;
+export type TestStarted = TestInfo & { id: string; file: string; locationHint: string };
+export type TestFinished = TestInfo & { duration: number };
+export type TestResultCount = {
     tests?: number;
     assertions?: number;
     errors?: number;
@@ -71,7 +71,7 @@ type TestResultCount = {
     risky?: number;
 };
 
-type TestFailed = TestFinished & {
+export type TestFailed = TestFinished & {
     message: string;
     details: Array<{ file: string; line: number }>;
 
@@ -80,11 +80,11 @@ type TestFailed = TestFinished & {
     expected?: string;
 };
 
-type TestIgnored = TestFailed;
+export type TestIgnored = TestFailed;
 
 type TimeAndMemory = { time: string; memory: string };
 
-type Teamcity =
+export type TestResult =
     | TestSuiteStarted
     | TestSuiteFinished
     | TestStarted
@@ -92,7 +92,7 @@ type Teamcity =
     | TestIgnored
     | TestFinished;
 
-export type Result = Teamcity | TestResultCount | TestCount | TimeAndMemory;
+export type Result = TestResult | TestResultCount | TestCount | TimeAndMemory;
 
 interface IParser<T> {
     is: (text: string) => boolean;
@@ -170,7 +170,7 @@ export class Parser implements IParser<Result | undefined> {
             ...argv,
             ...this.parseLocationHint(argv),
             ...this.parseDetails(argv),
-        } as Teamcity;
+        } as TestResult;
     }
 
     private parseDetails(argv: Pick<Arguments, string | number>) {
@@ -231,51 +231,51 @@ export class Parser implements IParser<Result | undefined> {
 }
 
 class ProblemMatcher {
-    private collect = new Map<string, Teamcity>();
+    private collect = new Map<string, TestResult>();
 
     private lookup: { [p: string]: Function } = {
-        [TeamcityEvent.testSuiteStarted]: this.handleStarted,
-        [TeamcityEvent.testStarted]: this.handleStarted,
-        [TeamcityEvent.testSuiteFinished]: this.handleFinished,
-        [TeamcityEvent.testFinished]: this.handleFinished,
-        [TeamcityEvent.testFailed]: this.handleFault,
-        [TeamcityEvent.testIgnored]: this.handleFault,
+        [TestEvent.testSuiteStarted]: this.handleStarted,
+        [TestEvent.testStarted]: this.handleStarted,
+        [TestEvent.testSuiteFinished]: this.handleFinished,
+        [TestEvent.testFinished]: this.handleFinished,
+        [TestEvent.testFailed]: this.handleFault,
+        [TestEvent.testIgnored]: this.handleFault,
     };
 
     constructor(private parser: Parser) {}
 
     read(
         input: string | Buffer
-    ): Teamcity | TestCount | TestResultCount | TimeAndMemory | undefined {
+    ): TestResult | TestCount | TestResultCount | TimeAndMemory | undefined {
         const result = this.parser.parse(input.toString());
 
         return !result || this.isReturn(result)
             ? result
-            : this.lookup[(result as Teamcity).event]?.call(this, result as Teamcity);
+            : this.lookup[(result as TestResult).event]?.call(this, result as TestResult);
     }
 
-    private isReturn(result: Teamcity | TestCount | TestResultCount | TimeAndMemory) {
+    private isReturn(result: TestResult | TestCount | TestResultCount | TimeAndMemory) {
         return (
             (result as TimeAndMemory).hasOwnProperty('memory') ||
-            (result as TestCount).event === TeamcityEvent.testCount ||
+            (result as TestCount).event === TestEvent.testCount ||
             (result as TestResultCount).hasOwnProperty('tests')
         );
     }
 
-    private handleStarted(result: Teamcity) {
+    private handleStarted(result: TestResult) {
         const id = this.generateId(result);
         this.collect.set(id, { ...result });
 
         return this.collect.get(id);
     }
 
-    private handleFault(result: Teamcity) {
+    private handleFault(result: TestResult) {
         const id = this.generateId(result);
         const prevData = this.collect.get(id);
         this.collect.set(id, { ...prevData, ...result });
     }
 
-    private handleFinished(result: Teamcity) {
+    private handleFinished(result: TestResult) {
         const id = this.generateId(result);
 
         const prevData = this.collect.get(id)!;
@@ -285,11 +285,11 @@ class ProblemMatcher {
         return this.collect.get(id);
     }
 
-    private isFault(result: Teamcity) {
-        return [TeamcityEvent.testFailed, TeamcityEvent.testIgnored].includes(result.event);
+    private isFault(result: TestResult) {
+        return [TestEvent.testFailed, TestEvent.testIgnored].includes(result.event);
     }
 
-    private generateId(result: Teamcity) {
+    private generateId(result: TestResult) {
         return `${result.name}-${result.flowId}`;
     }
 }

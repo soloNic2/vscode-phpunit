@@ -45,10 +45,11 @@ export class Command {
     }
 
     execute(input: string, options?: SpawnOptionsWithoutStdio) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const { command, args } = parsePhpUnitCommand(input);
 
-            const process = spawn(command, args, { ...options, ...(this.options ?? {}) });
+            options = { ...(this.options ?? {}), ...(options ?? {}) };
+            const process = spawn(command, args, options);
             const rl = readline.createInterface(process.stdout.wrap(process.stderr));
 
             let lastOutput = '';
@@ -61,9 +62,9 @@ export class Command {
                 }
             });
 
-            process.on('close', (code) => {
+            process.stderr.on('close', (code: number) => {
                 this.listeners['close'].forEach((fn) => fn(code));
-                resolve(code);
+                code === 1 ? reject(lastOutput) : resolve(code);
             });
         });
     }

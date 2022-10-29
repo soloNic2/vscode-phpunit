@@ -199,7 +199,7 @@ class Parser {
         class: this.parseClass,
     };
 
-    public parse(text: Buffer | string, fsPath: string) {
+    public parse(text: Buffer | string, fsPath: string): TestSuite[] | undefined {
         text = text.toString();
 
         // Todo https://github.com/glayzzle/php-parser/issues/170
