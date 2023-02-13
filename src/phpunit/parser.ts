@@ -71,8 +71,7 @@ class AnnotationParser {
 }
 
 export class AttributeParser {
-    private static readonly parser = new AnnotationParser();
-
+    private static readonly annotationParser = new AnnotationParser();
     private readonly lookup: { [p: string]: Function } = {
         namespace: this.parseNamespace,
         class: this.parseClass,
@@ -80,7 +79,7 @@ export class AttributeParser {
     };
 
     private get parser() {
-        return AttributeParser.parser;
+        return AttributeParser.annotationParser;
     }
 
     public uniqueId(namespace?: string, _class?: string, method?: string) {
